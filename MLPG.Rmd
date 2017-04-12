@@ -1,0 +1,112 @@
+---
+title: "ML-Peer Graded"
+author: "Dhaval Sawlani"
+date: "April 11, 2017"
+output:
+  html_document: default
+---
+
+####Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+###The training data for this project is
+```{r}
+training <- read.csv("pml-training.csv")
+```
+
+###The testing data for this project is 
+```{r}
+testing <- read.csv("pml-testing.csv")
+```
+
+###Creating Data Partition and loading the required libraries
+```{r, message = F, cache = T}
+library(knitr)
+library(caret)
+library(randomForest)
+library(ggplot2)
+library(rpart)
+library(rattle)
+library(gbm)
+intrain <- createDataPartition(y = training$classe, p = 0.7, list = FALSE)
+trainset <- training[intrain, ]
+testset <- training[-intrain, ]
+```
+
+We have a bunch of `r dim(trainset)[2]` variables. All of these variables might not function as good predictors. To ensure we use good predictors we will pass the Near Zero Variance function and will only use those predictors which will not near have zero variance.
+
+###Near-Zero Variance
+
+```{r, cache = T}
+nzv <- nearZeroVar(trainset)
+trainset <- trainset[, -nzv]
+testset <- testset[, -nzv]
+```
+
+We find that a lot of columns in our train set have NA's. NA's if not strategically used can crash the predictive models. Hence we will remove all the columns having NA's more than 95%.
+Also the identity columns i.e. the first five columns are not required and hence will be removed.
+###Data Cleaning
+
+```{r, cache = T}
+allcaseNA <- sapply(trainset, function(x) mean(is.na(x)) > 0.95)
+trainset <- trainset[, allcaseNA == FALSE]
+testset <- testset[, allcaseNA == FALSE]
+trainset <- subset(trainset, select = -c(1:5))
+testset <- subset(testset, select = -c(1:5))
+```
+
+
+###Random Forest Model Building
+We will apply **cv** method for **3** times to obtain a better random forest model.
+```{r, cache = TRUE}
+control <- trainControl(method = "cv", number = 3, verboseIter = FALSE)
+fit_rf <- train(classe ~ ., data = trainset, method = "rf", trControl = control)
+predict_rf <- predict(fit_rf, testset)
+##rf <- randomForest(classe ~ ., data = trainset)
+confusionMatrix(testset$classe, predict(fit_rf, testset))
+```
+
+Hence with the help of **Random Forest** method we get an **Accuracy of 99.7%** .
+
+###Generalized Boosted Regression Modelling Analysis
+
+```{r, cache = TRUE}
+control_gbm <- trainControl(method = "cv", number = 5, verboseIter = FALSE)
+fit_gbm <- train(classe ~ ., data = trainset, method = "gbm", trControl = control_gbm, verbose = FALSE)
+predict_gbm <- predict(fit_gbm, testset)
+##gb <- gbm(classe ~ ., data = trainset)
+confusionMatrix(testset$classe, predict(fit_gbm, testset))
+```
+
+Hence with the help of **Boosted Generalized Modelling** we get an **Accuracy of 98.5%**
+
+###Linear Discriminant Analysis
+
+```{r, cache = TRUE}
+fit_lda <- train(classe ~ ., data = trainset, method = "lda")
+predict_lda <- predict(fit_lda, testset)
+confusionMatrix(testset$classe, predict(fit_lda, testset))
+```
+
+We find that with the help of **Linear Discriminant Analysis** we get an **Accuracy of 71%**
+
+###Prediction on the Test Set
+
+To summarize the three methods, The Accuracy is as follows:- 
+
+
+**Random Forest** = **99.7%**
+
+**Generalized Boosted Regression Model** = **98.5%**
+
+**Rpart Decision Tree Generation** = **71%**
+
+
+From the above Analysis we can claim that the best model fitting into our data is the **Random Forest** with an **Accuracy** over **99%**. Hence, we will apply the selected model on our test set and predict the outcomes. The outcomes are as follows.
+
+```{r}
+predict_testing <- predict(fit_rf, testing)
+print(predict_testing)
+```
+
+
+--------------------------------------------------------------------------------------------
